@@ -1,0 +1,76 @@
+# Start from golang base image
+FROM golang:alpine as builder
+
+# ENV GO111MODULE=on
+
+# Add Maintainer info
+LABEL maintainer="Matrix  <matrix.kiojio@gmail.com>"
+
+# Install git.
+# Git is required for fetching the dependencies.
+RUN apk update && apk upgrade && \
+	apk add --no-cache bash git vim
+
+# ADD CURL
+RUN apk add --update tzdata \
+	bash wget curl git && \
+	rm -rf /var/cache/apk/*
+
+# Create binary directory, install glide and fresh
+RUN go get -u github.com/Masterminds/glide
+RUN go get -u github.com/pilu/fresh
+
+# Set the current working directory inside the container 
+WORKDIR /app
+
+# Copy go mod and sum files 
+COPY go.mod go.sum ./
+
+# Download all dependencies. Dependencies will be cached if the go.mod and the go.sum files are not changed 
+RUN go mod download 
+
+# Copy the source from the current directory to the working Directory inside the container 
+COPY . .
+
+# Build the Go app
+RUN CGO_ENABLED=0 GOOS=linux go build -a -installsuffix cgo -o main .
+RUN chmod 777 /app 
+
+# Build the Go app
+# RUN CGO_ENABLED=0 GOOS=linux go build -a -installsuffix cgo -o main .
+
+# Start a new stage from scratch
+FROM alpine:latest
+RUN apk --no-cache add ca-certificates
+
+ARG GOLANG_VERSION=1.14.3
+
+#we need the go version installed from apk to bootstrap the custom version built from source
+RUN apk update && apk add go gcc bash musl-dev openssl-dev ca-certificates && update-ca-certificates
+
+RUN wget https://dl.google.com/go/go$GOLANG_VERSION.src.tar.gz && tar -C /usr/local -xzf go$GOLANG_VERSION.src.tar.gz
+
+RUN cd /usr/local/go/src && ./make.bash
+
+ENV PATH=$PATH:/usr/local/go/bin
+
+RUN rm go$GOLANG_VERSION.src.tar.gz
+
+#we delete the apk installed version to avoid conflict
+RUN apk del go
+
+RUN go version
+
+WORKDIR /root/
+
+# Copy the Pre-built binary file from the previous stage. Observe we also copied the .env file
+COPY --from=builder /app/main .
+COPY --from=builder /app/.env .       
+
+# Expose port 8080 to the outside world
+EXPOSE 8080
+
+#Command to run the executable
+CMD ["./main", "~/go/bin/fresh", "-c", "/app/runner.conf", "/app/main.go"]
+# CMD ["$GOPATH/bin/fresh", "-c", "/app/runner.conf /app/main.go"]
+
