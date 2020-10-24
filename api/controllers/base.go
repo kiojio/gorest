@@ -9,6 +9,7 @@ import (
 	"github.com/jinzhu/gorm"
 	_ "github.com/jinzhu/gorm/dialects/mysql"
 	"github.com/kiojio/gorest/api/models"
+	"github.com/rs/cors"
 )
 
 type Server struct {
@@ -49,6 +50,13 @@ func (server *Server) Initialize(Dbdriver, DbUser, DbPassword, DbPort, DbHost, D
 }
 
 func (server *Server) Run(addr string) {
-	fmt.Println("Listening to port 8080")
-	log.Fatal(http.ListenAndServe(addr, server.Router))
+	c := cors.New(cors.Options{
+		AllowedOrigins: []string{"http://localhost:9060"},
+		AllowCredentials: true,
+	})
+	handler := c.Handler(server.Router)
+
+	fmt.Println("Listening to port 9070")
+
+	log.Fatal(http.ListenAndServe(addr, handler))
 }
