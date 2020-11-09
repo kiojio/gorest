@@ -31,16 +31,18 @@ func (server *Server) Login(w http.ResponseWriter, r *http.Request) {
 		responses.ERROR(w, http.StatusUnprocessableEntity, err)
 		return
 	}
-	token, err := server.SignIn(user.Email, user.Password)
+	
+	ret,err := server.SignIn(user.Email, user.Password)
 	if err != nil {
 		formattedError := formaterror.FormatError(err.Error())
 		responses.ERROR(w, http.StatusUnprocessableEntity, formattedError)
 		return
 	}
-	responses.JSON(w, http.StatusOK, token)
+
+	responses.JSON(w, http.StatusOK, ret)
 }
 
-func (server *Server) SignIn(email, password string) (string, error) {
+func (server *Server) SignIn(email, password string) (interface{}, error) {
 
 	var err error
 
@@ -54,5 +56,16 @@ func (server *Server) SignIn(email, password string) (string, error) {
 	if err != nil && err == bcrypt.ErrMismatchedHashAndPassword {
 		return "", err
 	}
-	return auth.CreateToken(user.ID)
+
+	token, err := auth.CreateToken(user.ID)
+	if err != nil {
+		return "", err
+	}
+
+	dataResponse := map[string]interface{}{}
+	dataResponse["nickname"] = user.Nickname
+	dataResponse["email"] = user.Email
+	dataResponse["token"] = token
+
+	return dataResponse, err
 }
