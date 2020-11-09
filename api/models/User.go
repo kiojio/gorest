@@ -3,7 +3,6 @@ package models
 import (
 	"errors"
 	"html"
-	"log"
 	"strings"
 	"time"
 
@@ -14,6 +13,8 @@ import (
 
 type User struct {
 	ID        uint32    `gorm:"primary_key;auto_increment" json:"id"`
+	Role      Role      `gorm:"ForeignKey:RoleId;AssociationForeignKey:RoleId" json:"role"`
+	RoleId    int32     `gorm:"foreign_key; not null" json:"role_id"`
 	Nickname  string    `gorm:"size:255;not null;unique" json:"nickname"`
 	Email     string    `gorm:"size:100;not null;unique" json:"email"`
 	Password  string    `gorm:"size:100;not null;" json:"password"`
@@ -51,9 +52,6 @@ func (u *User) Validate(action string) error {
 	case "update":
 		if u.Nickname == "" {
 			return errors.New("Required Nickname")
-		}
-		if u.Password == "" {
-			return errors.New("Required Password")
 		}
 		if u.Email == "" {
 			return errors.New("Required Email")
@@ -105,7 +103,7 @@ func (u *User) SaveUser(db *gorm.DB) (*User, error) {
 func (u *User) FindAllUsers(db *gorm.DB) (*[]User, error) {
 	var err error
 	users := []User{}
-	err = db.Debug().Model(&User{}).Limit(100).Find(&users).Error
+	err = db.Debug().Model(&User{}).Preload("Role").Limit(100).Find(&users).Error
 	if err != nil {
 		return &[]User{}, err
 	}
@@ -124,26 +122,37 @@ func (u *User) FindUserByID(db *gorm.DB, uid uint32) (*User, error) {
 	return u, err
 }
 
+func (u *User) FindSearchUser(db *gorm.DB, search string) (*[]User, error) {
+	var err error
+	users := []User{}
+	err = db.Debug().Model(&User{}).Where("nickname LIKE ? OR email LIKE ?", "%"+search+"%", "%"+search+"%").Preload("Role").Limit(100).Find(&users).Error
+	if err != nil {
+		return &[]User{}, err
+	}
+	return &users, err
+}
+
 func (u *User) UpdateAUser(db *gorm.DB, uid uint32) (*User, error) {
 
 	// To hash the password
-	err := u.BeforeSave()
-	if err != nil {
-		log.Fatal(err)
-	}
+	// err := u.BeforeSave()
+	// if err != nil {
+	// 	log.Fatal(err)
+	// }
 	db = db.Debug().Model(&User{}).Where("id = ?", uid).Take(&User{}).UpdateColumns(
 		map[string]interface{}{
-			"password":  u.Password,
-			"nickname":  u.Nickname,
-			"email":     u.Email,
-			"update_at": time.Now(),
+			"role_id": u.RoleId,
+			// "password":  u.Password,
+			"nickname":   u.Nickname,
+			"email":      u.Email,
+			"updated_at": time.Now(),
 		},
 	)
 	if db.Error != nil {
 		return &User{}, db.Error
 	}
 	// This is the display the updated user
-	err = db.Debug().Model(&User{}).Where("id = ?", uid).Take(&u).Error
+	err := db.Debug().Model(&User{}).Where("id = ?", uid).Take(&u).Error
 	if err != nil {
 		return &User{}, err
 	}
