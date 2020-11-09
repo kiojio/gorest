@@ -51,8 +51,11 @@ func (server *Server) Initialize(Dbdriver, DbUser, DbPassword, DbPort, DbHost, D
 
 func (server *Server) Run(addr string) {
 	c := cors.New(cors.Options{
-		AllowedOrigins: []string{"http://localhost:9060"},
-		AllowCredentials: true,
+		AllowedOrigins:   []string{"http://localhost", "http://localhost:9060"},
+		AllowedMethods:   []string{http.MethodGet, http.MethodPost, http.MethodDelete, http.MethodPut},
+		AllowedHeaders:   []string{"Content-Type", "Access-Control-Allow-Headers", "Authorization"},
+		Debug:            true,
+		AllowCredentials: false,
 	})
 	handler := c.Handler(server.Router)
 
